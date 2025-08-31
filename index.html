@@ -6,6 +6,7 @@
   <title>Real-time Weather Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <style>
     :root{
       --glass: rgba(255,255,255,.18);
@@ -18,85 +19,146 @@
       overflow-x: hidden;
       position: relative;
       color: #fff;
-      background: #ffd6a5; /* fallback สำหรับมือถือ */
     }
     /* ====== BACKGROUND THEMES ====== */
+    /* 1) Sunny: ชมพูพาสเทล + เหลืองสดใส */
     .bg-sunny{
-      background: 
-        radial-gradient(80% 80% at 50% 20%, #FFE781 0%, rgba(255,231,129,0) 70%),
-        linear-gradient(135deg, #ffbdd4 0%, #ffd6a5 45%, #fff1b8 100%);
+      background: radial-gradient(1200px 800px at 80% -10%, #FFE781 0%, rgba(255,231,129,0) 60%),
+                  linear-gradient(135deg, #ffbdd4 0%, #ffd6a5 45%, #fff1b8 100%);
     }
+    /* 2) Rain: ฟ้าเข้ม + ฝนโปรย */
     .bg-rain{
       background: linear-gradient(160deg, #1a2a6c 0%, #1e3c72 50%, #2a5298 100%);
     }
+    /* 3) Cloudy: เทา-ม่วงหม่น */
     .bg-cloudy{
       background: linear-gradient(120deg, #4b4b6b 0%, #6b5b73 50%, #7a6f86 100%);
     }
+    /* 4) Night: ม่วงน้ำเงิน + ดาวระยิบ */
     .bg-night{
-      background: 
-        radial-gradient(70% 70% at 50% 30%, rgba(148,187,233,.35) 0%, rgba(148,187,233,0) 70%),
-        linear-gradient(180deg, #0b1026 0%, #121a3b 60%, #1b2358 100%);
+      background: radial-gradient(800px 600px at 70% -20%, rgba(148,187,233,.35) 0%, rgba(148,187,233,0) 60%),
+                  linear-gradient(180deg, #0b1026 0%, #121a3b 60%, #1b2358 100%);
     }
-    .fx-layer{ position: fixed; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
+    /* ====== LAYERS CONTAINER ====== */
+    .fx-layer{
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+      overflow: hidden;
+    }
+    /* ====== CLOUDS (หลายชั้น, ลอยช้าๆ) ====== */
     .clouds{ opacity: .85; filter: drop-shadow(0 8px 12px rgba(0,0,0,.25)); }
     .cloud{
-      position: absolute; width: var(--w, 220px); height: var(--h, 80px);
-      background: rgba(255,255,255,.9); border-radius: 50px;
+      position: absolute;
+      width: var(--w, 220px);
+      height: var(--h, 80px);
+      background: rgba(255,255,255,.9);
+      border-radius: 50px;
       animation: drift var(--speed, 80s) linear infinite;
     }
     .cloud:before, .cloud:after{
-      content:""; position:absolute; background: rgba(255,255,255,.95);
-      width:60%; height:120%; border-radius: 50%; top:-30%; left:10%;
+      content:"";
+      position:absolute;
+      background: rgba(255,255,255,.95);
+      width:60%;
+      height:120%;
+      border-radius: 50%;
+      top:-30%;
+      left:10%;
       box-shadow: 80px 20px 0 10px rgba(255,255,255,.95);
     }
-    @keyframes drift{ 0%{ transform: translateX(-30vw);} 100%{ transform: translateX(130vw);} }
+    @keyframes drift{
+      0%{ transform: translateX(-30vw) translateY(var(--y,0)); }
+      100%{ transform: translateX(130vw) translateY(var(--y,0)); }
+    }
+    /* parallax layers */
     .layer-1 .cloud{ --speed: 90s; opacity:.9; }
     .layer-2 .cloud{ --speed: 70s; opacity:.8; }
     .layer-3 .cloud{ --speed: 55s; opacity:.75; }
+    /* ====== RAIN (พาร์ทิเคิลเส้นๆ) ====== */
     .rain{
       position: fixed; inset:0;
-      background: repeating-linear-gradient(to bottom,
-        rgba(255,255,255,.0) 0px, rgba(255,255,255,.0) 10px,
-        rgba(255,255,255,.25) 11px, rgba(255,255,255,.25) 12px);
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255,255,255,.0) 0px,
+        rgba(255,255,255,.0) 10px,
+        rgba(255,255,255,.25) 11px,
+        rgba(255,255,255,.25) 12px
+      );
       mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, #000 10%, #000 90%, rgba(0,0,0,0) 100%);
-      animation: rainShift 700ms linear infinite; opacity: .55;
+      animation: rainShift 700ms linear infinite;
+      opacity: .55;
     }
-    @keyframes rainShift{ 0%{ background-position: 0 0; } 100%{ background-position: 0 40px; } }
+    @keyframes rainShift{
+      0%{ background-position: 0 0; }
+      100%{ background-position: 0 40px; }
+    }
+    /* Extra: raindrops streaks */
     .raindrop{
-      position:absolute; width:1px; height:60px;
+      position:absolute;
+      width:1px; height:60px;
       background: linear-gradient(to bottom, rgba(255,255,255,.0), rgba(255,255,255,.7));
       animation: fall var(--t, 1.2s) linear infinite;
+      transform: translateZ(0);
+      will-change: transform;
     }
-    @keyframes fall{ 0%{ transform: translateY(-80px); opacity: 0; } 10%{ opacity: 1; } 100%{ transform: translateY(110vh); opacity: .2; } }
-    .stars{ position: fixed; inset:0; overflow:hidden; }
+    @keyframes fall{
+      0%{ transform: translateY(-80px); opacity: 0; }
+      10%{ opacity: 1; }
+      100%{ transform: translateY(110vh); opacity: .2; }
+    }
+    /* ====== STARS (กลางคืน ดาวระยิบ) ====== */
+    .stars{
+      position: fixed; inset:0;
+      overflow:hidden;
+    }
     .star{
-      position:absolute; width:2px; height:2px; border-radius:50%; background: white;
-      opacity:.9; animation: twinkle var(--tw, 2.5s) ease-in-out infinite alternate;
+      position:absolute;
+      width:2px; height:2px;
+      border-radius:50%;
+      background: white;
+      opacity:.9;
+      animation: twinkle var(--tw, 2.5s) ease-in-out infinite alternate;
       box-shadow: 0 0 6px rgba(255,255,255,.9);
     }
-    @keyframes twinkle{ 0%{ opacity:.3; transform: scale(1);} 100%{ opacity:1; transform: scale(1.6);} }
+    @keyframes twinkle{
+      0%{ opacity:.3; transform: scale(1); }
+      100%{ opacity:1; transform: scale(1.6); }
+    }
+    /* ====== GLASS CARD ====== */
     .card{
-      backdrop-filter: blur(var(--blur)); background-color: var(--glass);
-      border-radius: 1.5rem; padding: 1.25rem;
+      backdrop-filter: blur(var(--blur));
+      background-color: var(--glass);
+      border-radius: 1.5rem;
+      padding: 1.25rem;
       box-shadow: 0 10px 30px rgba(0,0,0,.2), inset 0 0 0 1px rgba(255,255,255,.12);
     }
+    /* ====== FANTASY GLOW (อุณหภูมิ) ====== */
     .temp-glow{
-      text-shadow: 0 0 12px rgba(255,255,255,.8), 0 0 28px rgba(255,255,255,.5), 0 0 54px rgba(255,255,200,.35);
+      text-shadow:
+        0 0 12px rgba(255,255,255,.8),
+        0 0 28px rgba(255,255,255,.5),
+        0 0 54px rgba(255,255,200,.35);
+      letter-spacing: 1px;
     }
-    .icon-glow{ filter: drop-shadow(0 0 10px rgba(255,255,255,.6)); }
+    /* ====== ICON GLOW ====== */
+    .icon-glow{
+      filter: drop-shadow(0 0 10px rgba(255,255,255,.6));
+    }
+    /* hide default canvas/map placeholder from old version */
+    #canvas-container, #map-placeholder{ display:none; }
   </style>
 </head>
 <body class="bg-sunny text-white p-4 flex flex-col justify-center items-center">
-
-  <!-- เอฟเฟกต์พื้นหลัง -->
   <div class="fx-layer stars" id="starsLayer" style="display:none;"></div>
   <div class="fx-layer clouds" id="cloudsLayer" style="display:none;">
-    <div class="layer-1"></div><div class="layer-2"></div><div class="layer-3"></div>
+    <div class="layer-1"></div>
+    <div class="layer-2"></div>
+    <div class="layer-3"></div>
   </div>
   <div class="fx-layer rain" id="rainLayer" style="display:none;"></div>
   <div class="fx-layer" id="rainDropsLayer" style="display:none;"></div>
-
-  <!-- เนื้อหา -->
   <div class="max-w-xl w-full mx-auto space-y-6 relative z-10">
     <div class="flex flex-col items-center text-center pt-8 pb-4">
       <div class="flex items-center gap-3">
@@ -107,76 +169,327 @@
         <span class="text-7xl md:text-8xl font-extralight temp-glow leading-none" id="temp-value">--°C</span>
       </div>
       <p class="text-2xl opacity-95 mt-1 capitalize" id="weather-description">...</p>
+      <div class="flex space-x-4 mt-2 opacity-90">
+        <p class="text-lg"><span id="temp-max-value">--</span>°C (Max)</p>
+        <p class="text-lg"><span id="temp-min-value">--</span>°C (Min)</p>
+      </div>
     </div>
-    <div class="card p-4">
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">💧 Humidity</p>
+        <p class="text-2xl font-medium mt-1" id="humidity-value">--%</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🌡️ Pressure</p>
+        <p class="text-2xl font-medium mt-1"><span id="pressure-value">--</span> hPa</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🌬️ Wind Speed</p>
+        <p class="text-2xl font-medium mt-1"><span id="wind-speed-value">--</span> m/s</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🧭 Wind Direction</p>
+        <p class="text-2xl font-medium mt-1"><span id="wind-direction-value">--</span>°</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">☀️ UV Index</p>
+        <p class="text-2xl font-medium mt-1" id="uv-index-value">--</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🌡️ Feels Like</p>
+        <p class="text-2xl font-medium mt-1" id="feels-like-value">--°C</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🌅 Sunrise</p>
+        <p class="text-2xl font-medium mt-1" id="sunrise-value">--</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🌇 Sunset</p>
+        <p class="text-2xl font-medium mt-1" id="sunset-value">--</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">👁️ Visibility</p>
+        <p class="text-2xl font-medium mt-1"><span id="visibility-value">--</span> km</p>
+      </div>
+    </div>
+    <div class="card p-4 shadow-lg">
       <h2 class="text-xl font-semibold mb-3">Hourly Forecast</h2>
       <div id="hourly-forecast-container" class="flex overflow-x-auto space-x-4 pb-2"></div>
     </div>
+    <div class="card p-4 shadow-lg">
+      <h2 class="text-xl font-semibold mb-3">7-Day Forecast</h2>
+      <div id="daily-forecast-container" class="space-y-2"></div>
+    </div>
   </div>
-
+  <footer class="mt-8 text-center text-sm opacity-70">
+    <div class="card p-4 shadow-lg">
+      <p>Create By Suwannarat & Siriwan</p>
+    </div>
+  </footer>
   <script>
     const API_KEY = 'ccffd32214c3b336e740cd6b4c9cf5d0';
-    const lat = '13.7563', lon = '100.5018';
+    const lat = '13.7563';
+    const lon = '100.5018';
     const cloudsLayer = document.getElementById('cloudsLayer');
     const rainLayer = document.getElementById('rainLayer');
     const rainDropsLayer = document.getElementById('rainDropsLayer');
     const starsLayer = document.getElementById('starsLayer');
     const mainIconEl = document.getElementById('main-icon');
 
+    /* ========== UTILITIES ========== */
     function getWeatherIcon(id){
-      if(id>=200 && id<300) return '⛈️';
-      if(id>=300 && id<600) return '🌧️';
-      if(id>=600 && id<700) return '❄️';
-      if(id===800) return '☀️';
-      if(id>800) return '☁️';
+      if(id >=200 && id<300) return '⛈️';
+      if(id >=300 && id<400) return '🌧️';
+      if(id >=500 && id<600) return '🌧️';
+      if(id >=600 && id<700) return '❄️';
+      if(id >=700 && id<800) return '🌫️';
+      if(id === 800) return '☀️';
+      if(id > 800 && id < 900) return '☁️';
       return '❓';
     }
+
     function classifyWeather(id){
-      if(id>=200 && id<600) return 'rain';
-      if(id===800) return 'sunny';
-      if(id>800) return 'cloudy';
+      if(id >=200 && id<600) return 'rain';
+      if(id === 800) return 'sunny';
+      if(id > 800 && id < 900) return 'cloudy';
+      // haze/mist -> cloudy mood
+      if(id >=700 && id<800) return 'cloudy';
       return 'sunny';
     }
+
     function isNightBySys(sys){
-      const now=Math.floor(Date.now()/1000);
-      return !(now>sys.sunrise && now<sys.sunset);
+      const now = Math.floor(Date.now()/1000);
+      return !(now > sys.sunrise && now < sys.sunset);
     }
+
     function clearLayers(){
-      cloudsLayer.style.display='none'; rainLayer.style.display='none';
-      rainDropsLayer.style.display='none'; starsLayer.style.display='none';
+      cloudsLayer.style.display = 'none';
+      rainLayer.style.display = 'none';
+      rainDropsLayer.style.display = 'none';
+      starsLayer.style.display = 'none';
+      // remove generated nodes
       [...cloudsLayer.querySelectorAll('.cloud')].forEach(n=>n.remove());
       [...rainDropsLayer.querySelectorAll('.raindrop')].forEach(n=>n.remove());
       [...starsLayer.querySelectorAll('.star')].forEach(n=>n.remove());
     }
+
     function setBodyTheme(theme, night=false){
       document.body.classList.remove('bg-sunny','bg-rain','bg-cloudy','bg-night');
       if(night) document.body.classList.add('bg-night');
-      else document.body.classList.add(theme==='rain'?'bg-rain':theme==='cloudy'?'bg-cloudy':'bg-sunny');
+      else{
+        if(theme==='rain') document.body.classList.add('bg-rain');
+        else if(theme==='cloudy') document.body.classList.add('bg-cloudy');
+        else document.body.classList.add('bg-sunny');
+      }
     }
-    function spawnStars(count=100){
-      starsLayer.style.display='block';
+
+    function spawnClouds(){
+      cloudsLayer.style.display = 'block';
+      const layers = [
+        cloudsLayer.querySelector('.layer-1'),
+        cloudsLayer.querySelector('.layer-2'),
+        cloudsLayer.querySelector('.layer-3'),
+      ];
+      const counts = [5, 6, 7];
+      layers.forEach((layer, idx)=>{
+        for(let i=0;i<counts[idx];i++){
+          const c = document.createElement('div');
+          c.className = 'cloud';
+          const w = 180 + Math.random()*220;
+          c.style.setProperty('--w', w+'px');
+          c.style.setProperty('--h', (60 + Math.random()*40)+'px');
+          c.style.top = (Math.random()*85)+'vh';
+          c.style.left = (-30 + Math.random()*120)+'vw';
+          c.style.setProperty('--y', (Math.random()*10-5)+'px');
+          // vary speed per layer slightly
+          const base = idx===0?90:(idx===1?70:55);
+          c.style.setProperty('--speed', (base + Math.random()*20)+'s');
+          layer.appendChild(c);
+        }
+      });
+    }
+
+    function spawnRain(density=110){
+      rainLayer.style.display = 'block';
+      rainDropsLayer.style.display = 'block';
+      const w = window.innerWidth;
+      for(let i=0;i<density;i++){
+        const d = document.createElement('div');
+        d.className = 'raindrop';
+        d.style.left = Math.random()*w + 'px';
+        d.style.top = (-100 - Math.random()*400) + 'px';
+        d.style.height = (40 + Math.random()*80)+'px';
+        d.style.opacity = (0.3 + Math.random()*0.7).toFixed(2);
+        d.style.setProperty('--t', (0.9 + Math.random()*0.9) + 's');
+        rainDropsLayer.appendChild(d);
+      }
+    }
+
+    function spawnStars(count=140){
+      starsLayer.style.display = 'block';
+      const w = window.innerWidth;
+      const h = window.innerHeight;
       for(let i=0;i<count;i++){
-        const s=document.createElement('div'); s.className='star';
-        s.style.left=Math.random()*window.innerWidth+'px';
-        s.style.top=Math.random()*window.innerHeight+'px';
+        const s = document.createElement('div');
+        s.className = 'star';
+        const x = Math.random()*w, y=Math.random()*h;
+        s.style.left = x+'px';
+        s.style.top = y+'px';
+        s.style.opacity = (0.4+Math.random()*0.6).toFixed(2);
+        s.style.setProperty('--tw', (1.6+Math.random()*2.2)+'s');
         starsLayer.appendChild(s);
       }
     }
+
     function updateFX(theme, night=false){
       clearLayers();
-      if(night){ setBodyTheme(theme,true); spawnStars(); }
-      else setBodyTheme(theme,false);
+      if(night){
+        setBodyTheme(theme, true);
+        spawnStars();
+        // กลางคืนถ้าเมฆมาก/ฝน ก็ใส่เมฆ/ฝนทับได้
+        if(theme==='cloudy') spawnClouds();
+        if(theme==='rain') spawnRain();
+        return;
+      }
+      setBodyTheme(theme, false);
+      if(theme==='sunny'){
+        // แดดออก: ใส่เมฆบางๆให้มีมิติ
+        spawnClouds();
+      }else if(theme==='cloudy'){
+        spawnClouds();
+      }else if(theme==='rain'){
+        spawnClouds();
+        spawnRain();
+      }
     }
 
+    /* ========== FETCH WEATHER ========== */
     async function fetchWeatherData(){
-      const url=`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
-      const res=await fetch(url); const data=await res.json();
-      document.getElementById('temp-value').textContent=`${data.main.temp.toFixed(0)}°C`;
-      document.getElementById('weather-description').textContent=data.weather[0].description;
-      const wId=data.weather[0].id; mainIconEl.textContent=getWeatherIcon(wId);
-      updateFX(classifyWeather(wId),isNightBySys(data.sys));
+      const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
+      const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
+      const uvUrl = `https://api.openweathermap.org/data/2.5/uvi?lat=${lat}&lon=${lon}&appid=${API_KEY}`;
+      try{
+        const [forecastResponse, currentResponse, uvResponse] = await Promise.all([
+          fetch(forecastUrl),
+          fetch(currentUrl),
+          fetch(uvUrl)
+        ]);
+        if(!forecastResponse.ok || !currentResponse.ok){
+          throw new Error(`HTTP error! status: ${forecastResponse.status} / ${currentResponse.status}`);
+        }
+        const forecastData = await forecastResponse.json();
+        const currentData = await currentResponse.json();
+        let uvData = { value: '--' };
+        if(uvResponse.ok){
+          uvData = await uvResponse.json();
+        }
+        displayCurrentWeather(currentData, forecastData, uvData);
+        displayHourlyForecast(forecastData.list);
+        displayDailyForecast(forecastData.list);
+        // === เปลี่ยนธีมตามอากาศ ===
+        const wId = currentData.weather?.[0]?.id ?? 800;
+        const night = isNightBySys(currentData.sys);
+        const theme = classifyWeather(wId);
+        mainIconEl.textContent = getWeatherIcon(wId);
+        updateFX(theme, night);
+      }catch(err){
+        console.error('Failed to fetch weather data:', err);
+      }
     }
-    fetchWeatherData(); setInterval(fetchWeatherData,60000);
+
+    /* ========== RENDER SECTIONS ========== */
+    function displayCurrentWeather(data, forecastData, uvData){
+      document.getElementById('temp-value').textContent = `${data.main.temp.toFixed(0)}°C`;
+      document.getElementById('weather-description').textContent = data.weather[0].description;
+      document.getElementById('humidity-value').textContent = `${data.main.humidity}%`;
+      document.getElementById('pressure-value').textContent = data.main.pressure;
+      document.getElementById('wind-speed-value').textContent = data.wind.speed;
+      document.getElementById('wind-direction-value').textContent = data.wind.deg;
+      document.getElementById('feels-like-value').textContent = `${data.main.feels_like.toFixed(0)}°C`;
+      document.getElementById('uv-index-value').textContent = uvData.value ?? '--';
+      document.getElementById('visibility-value').textContent = (data.visibility/1000).toFixed(1);
+      const sunriseTime = new Date(data.sys.sunrise * 1000)
+        .toLocaleTimeString('en-US',{hour:'2-digit', minute:'2-digit'});
+      const sunsetTime = new Date(data.sys.sunset * 1000)
+        .toLocaleTimeString('en-US',{hour:'2-digit', minute:'2-digit'});
+      document.getElementById('sunrise-value').textContent = sunriseTime;
+      document.getElementById('sunset-value').textContent = sunsetTime;
+      // Today min/max from forecast
+      const today = new Date().toLocaleDateString('en-US');
+      const todayForecast = forecastData.list.filter(item=>{
+        const d = new Date(item.dt*1000).toLocaleDateString('en-US');
+        return d===today;
+      });
+      if(todayForecast.length){
+        const minTemp = Math.min(...todayForecast.map(i=>i.main.temp_min));
+        const maxTemp = Math.max(...todayForecast.map(i=>i.main.temp_max));
+        document.getElementById('temp-max-value').textContent = maxTemp.toFixed(0);
+        document.getElementById('temp-min-value').textContent = minTemp.toFixed(0);
+      }
+    }
+
+    function displayDailyForecast(list){
+      const container = document.getElementById('daily-forecast-container');
+      container.innerHTML = '';
+      const dailyMap = new Map();
+      list.forEach(item=>{
+        const dateStr = new Date(item.dt*1000).toLocaleDateString('en-US');
+        if(!dailyMap.has(dateStr)){
+          dailyMap.set(dateStr, {
+            temp_min: item.main.temp_min,
+            temp_max: item.main.temp_max,
+            weather_id: item.weather[0].id,
+            dt: item.dt
+          });
+        }else{
+          const d = dailyMap.get(dateStr);
+          d.temp_min = Math.min(d.temp_min, item.main.temp_min);
+          d.temp_max = Math.max(d.temp_max, item.main.temp_max);
+        }
+      });
+      Array.from(dailyMap.values()).slice(0,7).forEach((day, idx)=>{
+        const date = new Date(day.dt*1000);
+        const dayName = idx===0 ? 'Today' : new Intl.DateTimeFormat('en-US', { weekday:'long'}).format(date);
+        const icon = getWeatherIcon(day.weather_id);
+        const tempMin = day.temp_min.toFixed(0);
+        const tempMax = day.temp_max.toFixed(0);
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-2 rounded-xl card';
+        item.innerHTML = `
+          <span class="text-sm font-light w-1/4">${dayName}</span>
+          <span class="text-xl w-1/4 text-center icon-glow">${icon}</span>
+          <span class="text-sm w-1/4 text-right">${tempMin}°C</span>
+          <span class="text-sm w-1/4 text-right">${tempMax}°C</span>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function displayHourlyForecast(list){
+      const container = document.getElementById('hourly-forecast-container');
+      container.innerHTML = '';
+      list.slice(0, 12).forEach(hour=>{
+        const d = new Date(hour.dt*1000);
+        const t = d.getHours().toString().padStart(2,'0') + ':00';
+        const icon = getWeatherIcon(hour.weather[0].id);
+        const temp = hour.main.temp.toFixed(0);
+        const wrap = document.createElement('div');
+        wrap.className = 'flex flex-col items-center flex-shrink-0 card p-3 min-w-[86px]';
+        wrap.innerHTML = `
+          <p class="text-sm">${t}</p>
+          <span class="text-2xl mt-2 icon-glow">${icon}</span>
+          <p class="text-sm font-light mt-2">${temp}°C</p>
+        `;
+        container.appendChild(wrap);
+      });
+    }
+
+    /* ========== INIT ========== */
+    window.addEventListener('resize', () => {
+      // If needed: regenerate stars/rain for new size
+    });
+    fetchWeatherData();
+    setInterval(fetchWeatherData, 60000);
   </script>
 </body>
 </html>
