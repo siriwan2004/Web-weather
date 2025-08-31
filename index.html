@@ -217,10 +217,15 @@
       <div id="hourly-forecast-container" class="flex overflow-x-auto space-x-4 pb-2"></div>
     </div>
     <div class="card p-4 shadow-lg">
-      <h2 class="text-xl font-semibold mb-3">5-Day Forecast</h2>
+      <h2 class="text-xl font-semibold mb-3">7-Day Forecast</h2>
       <div id="daily-forecast-container" class="space-y-2"></div>
     </div>
   </div>
+  <footer class="mt-8 text-center text-sm opacity-70">
+    <div class="card p-4 shadow-lg">
+      <p>Suwannarat & Siriwan</p>
+    </div>
+  </footer>
   <script>
     const API_KEY = 'ccffd32214c3b336e740cd6b4c9cf5d0';
     const lat = '13.7563';
@@ -411,47 +416,42 @@
         document.getElementById('temp-min-value').textContent = minTemp.toFixed(0);
       }
     }
-    
     function displayDailyForecast(list){
       const container = document.getElementById('daily-forecast-container');
       container.innerHTML = '';
-      const dailyData = {};
-      
-      list.forEach(item => {
-        const date = new Date(item.dt * 1000);
-        const dateStr = date.toLocaleDateString('en-US');
-        
-        if (!dailyData[dateStr]) {
-          dailyData[dateStr] = {
-            temps: [],
-            weatherId: item.weather[0].id
-          };
+      const dailyMap = new Map();
+      list.forEach(item=>{
+        const dateStr = new Date(item.dt*1000).toLocaleDateString('en-US');
+        if(!dailyMap.has(dateStr)){
+          dailyMap.set(dateStr, {
+            temp_min: item.main.temp_min,
+            temp_max: item.main.temp_max,
+            weather_id: item.weather[0].id,
+            dt: item.dt
+          });
+        }else{
+          const d = dailyMap.get(dateStr);
+          d.temp_min = Math.min(d.temp_min, item.main.temp_min);
+          d.temp_max = Math.max(d.temp_max, item.main.temp_max);
         }
-        dailyData[dateStr].temps.push(item.main.temp);
       });
-      
-      const dailyForecasts = Object.keys(dailyData).slice(0, 5); // Only show 5 days
-      
-      dailyForecasts.forEach((dateStr, idx) => {
-        const dayData = dailyData[dateStr];
-        const minTemp = Math.min(...dayData.temps);
-        const maxTemp = Math.max(...dayData.temps);
-        const date = new Date(dateStr);
-        const dayName = idx === 0 ? 'Today' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
-        const icon = getWeatherIcon(dayData.weatherId);
-        
+      Array.from(dailyMap.values()).slice(0,7).forEach((day, idx)=>{
+        const date = new Date(day.dt*1000);
+        const dayName = idx===0 ? 'Today' : new Intl.DateTimeFormat('en-US', { weekday:'long'}).format(date);
+        const icon = getWeatherIcon(day.weather_id);
+        const tempMin = day.temp_min.toFixed(0);
+        const tempMax = day.temp_max.toFixed(0);
         const item = document.createElement('div');
         item.className = 'flex items-center justify-between p-2 rounded-xl card';
         item.innerHTML = `
           <span class="text-sm font-light w-1/4">${dayName}</span>
           <span class="text-xl w-1/4 text-center icon-glow">${icon}</span>
-          <span class="text-sm w-1/4 text-right">${minTemp.toFixed(0)}°C</span>
-          <span class="text-sm w-1/4 text-right">${maxTemp.toFixed(0)}°C</span>
+          <span class="text-sm w-1/4 text-right">${tempMin}°C</span>
+          <span class="text-sm w-1/4 text-right">${tempMax}°C</span>
         `;
         container.appendChild(item);
       });
     }
-
     function displayHourlyForecast(list){
       const container = document.getElementById('hourly-forecast-container');
       container.innerHTML = '';
