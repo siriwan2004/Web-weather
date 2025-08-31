@@ -20,7 +20,6 @@
       position: relative;
       color: #fff;
     }
-
     /* ====== BACKGROUND THEMES ====== */
     /* 1) Sunny: ชมพูพาสเทล + เหลืองสดใส */
     .bg-sunny{
@@ -40,7 +39,6 @@
       background: radial-gradient(800px 600px at 70% -20%, rgba(148,187,233,.35) 0%, rgba(148,187,233,0) 60%),
                   linear-gradient(180deg, #0b1026 0%, #121a3b 60%, #1b2358 100%);
     }
-
     /* ====== LAYERS CONTAINER ====== */
     .fx-layer{
       position: fixed;
@@ -49,7 +47,6 @@
       z-index: -1;
       overflow: hidden;
     }
-
     /* ====== CLOUDS (หลายชั้น, ลอยช้าๆ) ====== */
     .clouds{ opacity: .85; filter: drop-shadow(0 8px 12px rgba(0,0,0,.25)); }
     .cloud{
@@ -79,7 +76,6 @@
     .layer-1 .cloud{ --speed: 90s; opacity:.9; }
     .layer-2 .cloud{ --speed: 70s; opacity:.8; }
     .layer-3 .cloud{ --speed: 55s; opacity:.75; }
-
     /* ====== RAIN (พาร์ทิเคิลเส้นๆ) ====== */
     .rain{
       position: fixed; inset:0;
@@ -112,7 +108,6 @@
       10%{ opacity: 1; }
       100%{ transform: translateY(110vh); opacity: .2; }
     }
-
     /* ====== STARS (กลางคืน ดาวระยิบ) ====== */
     .stars{
       position: fixed; inset:0;
@@ -131,7 +126,6 @@
       0%{ opacity:.3; transform: scale(1); }
       100%{ opacity:1; transform: scale(1.6); }
     }
-
     /* ====== GLASS CARD ====== */
     .card{
       backdrop-filter: blur(var(--blur));
@@ -140,7 +134,6 @@
       padding: 1.25rem;
       box-shadow: 0 10px 30px rgba(0,0,0,.2), inset 0 0 0 1px rgba(255,255,255,.12);
     }
-
     /* ====== FANTASY GLOW (อุณหภูมิ) ====== */
     .temp-glow{
       text-shadow:
@@ -149,32 +142,24 @@
         0 0 54px rgba(255,255,200,.35);
       letter-spacing: 1px;
     }
-
     /* ====== ICON GLOW ====== */
     .icon-glow{
       filter: drop-shadow(0 0 10px rgba(255,255,255,.6));
     }
-
     /* hide default canvas/map placeholder from old version */
     #canvas-container, #map-placeholder{ display:none; }
   </style>
 </head>
 <body class="bg-sunny text-white p-4 flex flex-col justify-center items-center">
-  <!-- FX LAYERS -->
   <div class="fx-layer stars" id="starsLayer" style="display:none;"></div>
-
   <div class="fx-layer clouds" id="cloudsLayer" style="display:none;">
     <div class="layer-1"></div>
     <div class="layer-2"></div>
     <div class="layer-3"></div>
   </div>
-
   <div class="fx-layer rain" id="rainLayer" style="display:none;"></div>
   <div class="fx-layer" id="rainDropsLayer" style="display:none;"></div>
-
-  <!-- MAIN CONTENT -->
   <div class="max-w-xl w-full mx-auto space-y-6 relative z-10">
-    <!-- Main Weather Section -->
     <div class="flex flex-col items-center text-center pt-8 pb-4">
       <div class="flex items-center gap-3">
         <span id="main-icon" class="text-5xl icon-glow">—</span>
@@ -189,8 +174,6 @@
         <p class="text-lg"><span id="temp-min-value">--</span>°C (Min)</p>
       </div>
     </div>
-
-    <!-- Detailed Info Grid -->
     <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
       <div class="card flex flex-col items-center text-center">
         <p class="text-sm opacity-80">💧 Humidity</p>
@@ -229,31 +212,24 @@
         <p class="text-2xl font-medium mt-1"><span id="visibility-value">--</span> km</p>
       </div>
     </div>
-
-    <!-- Hourly Forecast -->
     <div class="card p-4 shadow-lg">
       <h2 class="text-xl font-semibold mb-3">Hourly Forecast</h2>
       <div id="hourly-forecast-container" class="flex overflow-x-auto space-x-4 pb-2"></div>
     </div>
-
-    <!-- Daily Forecast -->
     <div class="card p-4 shadow-lg">
-      <h2 class="text-xl font-semibold mb-3">10-Day Forecast</h2>
+      <h2 class="text-xl font-semibold mb-3">5-Day Forecast</h2>
       <div id="daily-forecast-container" class="space-y-2"></div>
     </div>
   </div>
-
   <script>
     const API_KEY = 'ccffd32214c3b336e740cd6b4c9cf5d0';
     const lat = '13.7563';
     const lon = '100.5018';
-
     const cloudsLayer = document.getElementById('cloudsLayer');
     const rainLayer = document.getElementById('rainLayer');
     const rainDropsLayer = document.getElementById('rainDropsLayer');
     const starsLayer = document.getElementById('starsLayer');
     const mainIconEl = document.getElementById('main-icon');
-
     /* ========== UTILITIES ========== */
     function getWeatherIcon(id){
       if(id >=200 && id<300) return '⛈️';
@@ -265,7 +241,6 @@
       if(id > 800 && id < 900) return '☁️';
       return '❓';
     }
-
     function classifyWeather(id){
       if(id >=200 && id<600) return 'rain';
       if(id === 800) return 'sunny';
@@ -274,12 +249,10 @@
       if(id >=700 && id<800) return 'cloudy';
       return 'sunny';
     }
-
     function isNightBySys(sys){
       const now = Math.floor(Date.now()/1000);
       return !(now > sys.sunrise && now < sys.sunset);
     }
-
     function clearLayers(){
       cloudsLayer.style.display = 'none';
       rainLayer.style.display = 'none';
@@ -290,7 +263,6 @@
       [...rainDropsLayer.querySelectorAll('.raindrop')].forEach(n=>n.remove());
       [...starsLayer.querySelectorAll('.star')].forEach(n=>n.remove());
     }
-
     function setBodyTheme(theme, night=false){
       document.body.classList.remove('bg-sunny','bg-rain','bg-cloudy','bg-night');
       if(night) document.body.classList.add('bg-night');
@@ -300,7 +272,6 @@
         else document.body.classList.add('bg-sunny');
       }
     }
-
     function spawnClouds(){
       cloudsLayer.style.display = 'block';
       const layers = [
@@ -326,7 +297,6 @@
         }
       });
     }
-
     function spawnRain(density=110){
       rainLayer.style.display = 'block';
       rainDropsLayer.style.display = 'block';
@@ -342,7 +312,6 @@
         rainDropsLayer.appendChild(d);
       }
     }
-
     function spawnStars(count=140){
       starsLayer.style.display = 'block';
       const w = window.innerWidth;
@@ -358,7 +327,6 @@
         starsLayer.appendChild(s);
       }
     }
-
     function updateFX(theme, night=false){
       clearLayers();
       if(night){
@@ -380,47 +348,39 @@
         spawnRain();
       }
     }
-
     /* ========== FETCH WEATHER ========== */
     async function fetchWeatherData(){
       const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
       const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
       const uvUrl = `https://api.openweathermap.org/data/2.5/uvi?lat=${lat}&lon=${lon}&appid=${API_KEY}`;
-
       try{
         const [forecastResponse, currentResponse, uvResponse] = await Promise.all([
           fetch(forecastUrl),
           fetch(currentUrl),
           fetch(uvUrl)
         ]);
-
         if(!forecastResponse.ok || !currentResponse.ok){
           throw new Error(`HTTP error! status: ${forecastResponse.status} / ${currentResponse.status}`);
         }
-
         const forecastData = await forecastResponse.json();
         const currentData = await currentResponse.json();
         let uvData = { value: '--' };
         if(uvResponse.ok){
           uvData = await uvResponse.json();
         }
-
         displayCurrentWeather(currentData, forecastData, uvData);
         displayHourlyForecast(forecastData.list);
         displayDailyForecast(forecastData.list);
-
         // === เปลี่ยนธีมตามอากาศ ===
         const wId = currentData.weather?.[0]?.id ?? 800;
         const night = isNightBySys(currentData.sys);
         const theme = classifyWeather(wId);
         mainIconEl.textContent = getWeatherIcon(wId);
         updateFX(theme, night);
-
       }catch(err){
         console.error('Failed to fetch weather data:', err);
       }
     }
-
     /* ========== RENDER SECTIONS ========== */
     function displayCurrentWeather(data, forecastData, uvData){
       document.getElementById('temp-value').textContent = `${data.main.temp.toFixed(0)}°C`;
@@ -432,14 +392,12 @@
       document.getElementById('feels-like-value').textContent = `${data.main.feels_like.toFixed(0)}°C`;
       document.getElementById('uv-index-value').textContent = uvData.value ?? '--';
       document.getElementById('visibility-value').textContent = (data.visibility/1000).toFixed(1);
-
       const sunriseTime = new Date(data.sys.sunrise * 1000)
         .toLocaleTimeString('en-US',{hour:'2-digit', minute:'2-digit'});
       const sunsetTime = new Date(data.sys.sunset * 1000)
         .toLocaleTimeString('en-US',{hour:'2-digit', minute:'2-digit'});
       document.getElementById('sunrise-value').textContent = sunriseTime;
       document.getElementById('sunset-value').textContent = sunsetTime;
-
       // Today min/max from forecast
       const today = new Date().toLocaleDateString('en-US');
       const todayForecast = forecastData.list.filter(item=>{
@@ -453,41 +411,42 @@
         document.getElementById('temp-min-value').textContent = minTemp.toFixed(0);
       }
     }
-
+    
     function displayDailyForecast(list){
       const container = document.getElementById('daily-forecast-container');
       container.innerHTML = '';
-      const dailyMap = new Map();
-      list.forEach(item=>{
-        const dateStr = new Date(item.dt*1000).toLocaleDateString('en-US');
-        if(!dailyMap.has(dateStr)){
-          dailyMap.set(dateStr, {
-            temp_min: item.main.temp_min,
-            temp_max: item.main.temp_max,
-            weather_id: item.weather[0].id,
-            dt: item.dt
-          });
-        }else{
-          const d = dailyMap.get(dateStr);
-          d.temp_min = Math.min(d.temp_min, item.main.temp_min);
-          d.temp_max = Math.max(d.temp_max, item.main.temp_max);
+      const dailyData = {};
+      
+      list.forEach(item => {
+        const date = new Date(item.dt * 1000);
+        const dateStr = date.toLocaleDateString('en-US');
+        
+        if (!dailyData[dateStr]) {
+          dailyData[dateStr] = {
+            temps: [],
+            weatherId: item.weather[0].id
+          };
         }
+        dailyData[dateStr].temps.push(item.main.temp);
       });
-
-      Array.from(dailyMap.values()).slice(0,10).forEach((day, idx)=>{
-        const date = new Date(day.dt*1000);
-        const dayName = idx===0 ? 'Today' : new Intl.DateTimeFormat('en-US', { weekday:'long'}).format(date);
-        const icon = getWeatherIcon(day.weather_id);
-        const tempMin = day.temp_min.toFixed(0);
-        const tempMax = day.temp_max.toFixed(0);
-
+      
+      const dailyForecasts = Object.keys(dailyData).slice(0, 5); // Only show 5 days
+      
+      dailyForecasts.forEach((dateStr, idx) => {
+        const dayData = dailyData[dateStr];
+        const minTemp = Math.min(...dayData.temps);
+        const maxTemp = Math.max(...dayData.temps);
+        const date = new Date(dateStr);
+        const dayName = idx === 0 ? 'Today' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
+        const icon = getWeatherIcon(dayData.weatherId);
+        
         const item = document.createElement('div');
         item.className = 'flex items-center justify-between p-2 rounded-xl card';
         item.innerHTML = `
           <span class="text-sm font-light w-1/4">${dayName}</span>
           <span class="text-xl w-1/4 text-center icon-glow">${icon}</span>
-          <span class="text-sm w-1/4 text-right">${tempMin}°C</span>
-          <span class="text-sm w-1/4 text-right">${tempMax}°C</span>
+          <span class="text-sm w-1/4 text-right">${minTemp.toFixed(0)}°C</span>
+          <span class="text-sm w-1/4 text-right">${maxTemp.toFixed(0)}°C</span>
         `;
         container.appendChild(item);
       });
@@ -501,7 +460,6 @@
         const t = d.getHours().toString().padStart(2,'0') + ':00';
         const icon = getWeatherIcon(hour.weather[0].id);
         const temp = hour.main.temp.toFixed(0);
-
         const wrap = document.createElement('div');
         wrap.className = 'flex flex-col items-center flex-shrink-0 card p-3 min-w-[86px]';
         wrap.innerHTML = `
@@ -512,12 +470,10 @@
         container.appendChild(wrap);
       });
     }
-
     /* ========== INIT ========== */
     window.addEventListener('resize', () => {
       // ถ้าต้องการ: regenerate stars/rain for new size
     });
-
     fetchWeatherData();
   </script>
 </body>
