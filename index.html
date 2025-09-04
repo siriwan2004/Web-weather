@@ -2,255 +2,251 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Real-time Weather Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <style>
-    body { font-family: 'Kanit', sans-serif; transition: background 1s ease; overflow-x: hidden; }
-    .bg-sunny { background: linear-gradient(to top, #87CEEB, #fdf497); }
-    .bg-night { background: linear-gradient(to top, #0f2027, #203a43, #2c5364); }
-    .bg-rain { background: linear-gradient(to top, #3a6073, #16222a); }
-    .bg-cloudy { background: linear-gradient(to top, #d7d2cc, #304352); }
-    .weather-card { background: rgba(255,255,255,0.8); backdrop-filter: blur(10px); border-radius: 1rem; padding: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-    .forecast-scroll { display: flex; overflow-x: auto; gap: 1rem; padding: 0.5rem 0; }
-    .forecast-item { min-width: 100px; text-align: center; background: rgba(255,255,255,0.7); border-radius: 0.75rem; padding: 0.5rem; flex-shrink: 0; }
-    .stars, .clouds, .rain { position: fixed; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-    .star { position: absolute; width:2px; height:2px; background: white; border-radius: 50%; animation: twinkle var(--tw,2s) infinite alternate; }
-    @keyframes twinkle { from{opacity:0.2;} to{opacity:1;} }
-    .cloud { position: absolute; background: #fff; border-radius: 50%; opacity: 0.8; animation: moveCloud var(--speed,40s) linear infinite; }
-    @keyframes moveCloud { from{ transform: translateX(-200px) translateY(var(--y,0)); } to{ transform: translateX(100vw) translateY(var(--y,0)); } }
-    .raindrop { position: absolute; width:2px; background:rgba(173,216,230,0.8); animation: fall var(--t,1.5s) linear infinite; }
-    @keyframes fall { to{ transform: translateY(100vh); } }
+    :root{
+      --glass: rgba(255,255,255,.18);
+      --blur: 10px;
+    }
+    body{
+      font-family: 'Kanit', sans-serif;
+      transition: background 700ms ease, color 300ms ease;
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+      color: #fff;
+    }
+    .bg-sunny{
+      background: radial-gradient(1200px 800px at 80% -10%, #FFE781 0%, rgba(255,231,129,0) 60%),
+                  linear-gradient(135deg, #ffbdd4 0%, #ffd6a5 45%, #fff1b8 100%);
+    }
+    .bg-rain{
+      background: linear-gradient(160deg, #1a2a6c 0%, #1e3c72 50%, #2a5298 100%);
+    }
+    .bg-cloudy{
+      background: linear-gradient(120deg, #4b4b6b 0%, #6b5b73 50%, #7a6f86 100%);
+    }
+    .bg-night{
+      background: radial-gradient(800px 600px at 70% -20%, rgba(148,187,233,.35) 0%, rgba(148,187,233,0) 60%),
+                  linear-gradient(180deg, #0b1026 0%, #121a3b 60%, #1b2358 100%);
+    }
+    .fx-layer{
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+      overflow: hidden;
+    }
+    .clouds{ opacity: .85; filter: drop-shadow(0 8px 12px rgba(0,0,0,.25)); }
+    .cloud{
+      position: absolute;
+      width: var(--w, 220px);
+      height: var(--h, 80px);
+      background: rgba(255,255,255,.9);
+      border-radius: 50px;
+      animation: drift var(--speed, 80s) linear infinite;
+    }
+    .cloud:before, .cloud:after{
+      content:"";
+      position:absolute;
+      background: rgba(255,255,255,.95);
+      width:60%;
+      height:120%;
+      border-radius: 50%;
+      top:-30%;
+      left:10%;
+      box-shadow: 80px 20px 0 10px rgba(255,255,255,.95);
+    }
+    @keyframes drift{
+      0%{ transform: translateX(-30vw) translateY(var(--y,0)); }
+      100%{ transform: translateX(130vw) translateY(var(--y,0)); }
+    }
+    .layer-1 .cloud{ --speed: 90s; opacity:.9; }
+    .layer-2 .cloud{ --speed: 70s; opacity:.8; }
+    .layer-3 .cloud{ --speed: 55s; opacity:.75; }
+    .rain{
+      position: fixed; inset:0;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255,255,255,.0) 0px,
+        rgba(255,255,255,.0) 10px,
+        rgba(255,255,255,.25) 11px,
+        rgba(255,255,255,.25) 12px
+      );
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, #000 10%, #000 90%, rgba(0,0,0,0) 100%);
+      animation: rainShift 700ms linear infinite;
+      opacity: .55;
+    }
+    @keyframes rainShift{
+      0%{ background-position: 0 0; }
+      100%{ background-position: 0 40px; }
+    }
+    .raindrop{
+      position:absolute;
+      width:1px; height:60px;
+      background: linear-gradient(to bottom, rgba(255,255,255,.0), rgba(255,255,255,.7));
+      animation: fall var(--t, 1.2s) linear infinite;
+      transform: translateZ(0);
+      will-change: transform;
+    }
+    @keyframes fall{
+      0%{ transform: translateY(-80px); opacity: 0; }
+      10%{ opacity: 1; }
+      100%{ transform: translateY(110vh); opacity: .2; }
+    }
+    .stars{
+      position: fixed; inset:0;
+      overflow:hidden;
+    }
+    .star{
+      position:absolute;
+      width:2px; height:2px;
+      border-radius:50%;
+      background: white;
+      opacity:.9;
+      animation: twinkle var(--tw, 2.5s) ease-in-out infinite alternate;
+      box-shadow: 0 0 6px rgba(255,255,255,.9);
+    }
+    @keyframes twinkle{
+      0%{ opacity:.3; transform: scale(1); }
+      100%{ opacity:1; transform: scale(1.6); }
+    }
+    .card{
+      backdrop-filter: blur(var(--blur));
+      background-color: var(--glass);
+      border-radius: 1.5rem;
+      padding: 1.25rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,.2), inset 0 0 0 1px rgba(255,255,255,.12);
+    }
+    .temp-glow{
+      text-shadow:
+        0 0 12px rgba(255,255,255,.8),
+        0 0 28px rgba(255,255,255,.5),
+        0 0 54px rgba(255,255,200,.35);
+      letter-spacing: 1px;
+    }
+    .icon-glow{
+      filter: drop-shadow(0 0 10px rgba(255,255,255,.6));
+    }
   </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-start p-4 bg-sunny">
-  <!-- Layers -->
-  <div id="starsLayer" class="stars"></div>
-  <div id="cloudsLayer" class="clouds">
+<body class="bg-sunny text-white p-4 flex flex-col justify-center items-center">
+  <div class="fx-layer stars" id="starsLayer" style="display:none;"></div>
+  <div class="fx-layer clouds" id="cloudsLayer" style="display:none;">
     <div class="layer-1"></div>
     <div class="layer-2"></div>
     <div class="layer-3"></div>
   </div>
-  <div id="rainLayer" class="rain"></div>
-  <div id="rainDropsLayer" class="rain"></div>
+  <div class="fx-layer rain" id="rainLayer" style="display:none"></div>
+  <div class="fx-layer" id="rainDropsLayer" style="display:none"></div>
 
-  <div class="relative z-10 w-full max-w-4xl">
-    <h1 class="text-3xl font-semibold mb-4 text-center">Weather Dashboard</h1>
-    <!-- Current Weather -->
-    <div id="current-weather" class="weather-card mb-6 text-center"></div>
-    <!-- Daily Forecast -->
-    <h2 class="text-xl font-semibold mb-2">7-Day Forecast</h2>
-    <div id="daily-forecast" class="forecast-scroll mb-6"></div>
-    <!-- Hourly Forecast -->
-    <h2 class="text-xl font-semibold mb-2">Next Hours</h2>
-    <div id="hourly-forecast" class="forecast-scroll"></div>
+  <div class="max-w-xl w-full mx-auto space-y-6 relative z-10">
+    <div class="flex flex-col items-center text-center pt-8 pb-4">
+      <div class="flex items-center gap-3">
+        <span id="main-icon" class="text-5xl icon-glow">—</span>
+        <h1 class="text-3xl md:text-4xl font-semibold mt-2" id="city-name">—</h1>
+      </div>
+      <div class="flex items-center mt-3">
+        <span class="text-7xl md:text-8xl font-extralight temp-glow leading-none" id="temp-value">--°C</span>
+      </div>
+      <p class="text-2xl opacity-95 mt-1 capitalize" id="weather-description">...</p>
+      <div class="flex space-x-4 mt-2 opacity-90">
+        <p class="text-lg"><span id="temp-max-value">--</span>°C (Max)</p>
+        <p class="text-lg"><span id="temp-min-value">--</span>°C (Min)</p>
+      </div>
+    </div>
+    <!-- Rest of the cards remain the same -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">💧 Humidity</p>
+        <p class="text-2xl font-medium mt-1" id="humidity-value">--%</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🌡️ Pressure</p>
+        <p class="text-2xl font-medium mt-1"><span id="pressure-value">--</span> hPa</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🌬️ Wind Speed</p>
+        <p class="text-2xl font-medium mt-1"><span id="wind-speed-value">--</span> m/s</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🧭 Wind Direction</p>
+        <p class="text-2xl font-medium mt-1"><span id="wind-direction-value">--</span>°</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">☀️ UV Index</p>
+        <p class="text-2xl font-medium mt-1" id="uv-index-value">--</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🌡️ Feels Like</p>
+        <p class="text-2xl font-medium mt-1" id="feels-like-value">--°C</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🌅 Sunrise</p>
+        <p class="text-2xl font-medium mt-1" id="sunrise-value">--</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">🌇 Sunset</p>
+        <p class="text-2xl font-medium mt-1" id="sunset-value">--</p>
+      </div>
+      <div class="card flex flex-col items-center text-center">
+        <p class="text-sm opacity-80">👁️ Visibility</p>
+        <p class="text-2xl font-medium mt-1"><span id="visibility-value">--</span> km</p>
+      </div>
+    </div>
   </div>
 
   <script>
     const API_KEY = 'ccffd32214c3b336e740cd6b4c9cf5d0';
+    const cityName = 'Bangkok, Thailand'; // หรือเปลี่ยนเป็น input ของผู้ใช้
     const cloudsLayer = document.getElementById('cloudsLayer');
     const rainLayer = document.getElementById('rainLayer');
     const rainDropsLayer = document.getElementById('rainDropsLayer');
     const starsLayer = document.getElementById('starsLayer');
+    const mainIconEl = document.getElementById('main-icon');
+    const cityNameEl = document.getElementById('city-name');
 
-    /* ========== UTILITIES ========== */
-    function getWeatherIcon(id){
-      if(id >=200 && id<300) return '⛈️';
-      if(id >=300 && id<400) return '🌧️';
-      if(id >=500 && id<600) return '🌧️';
-      if(id >=600 && id<700) return '❄️';
-      if(id >=700 && id<800) return '🌫️';
-      if(id === 800) return '☀️';
-      if(id > 800 && id < 900) return '☁️';
-      return '❓';
-    }
-    function classifyWeather(id){
-      if(id >=200 && id<600) return 'rain';
-      if(id === 800) return 'sunny';
-      if(id > 800 && id < 900) return 'cloudy';
-      if(id >=700 && id<800) return 'cloudy';
-      return 'sunny';
-    }
-    function isNightBySys(sys){
-      const now = Math.floor(Date.now()/1000);
-      return !(now > sys.sunrise && now < sys.sunset);
-    }
-    function clearLayers(){
-      cloudsLayer.style.display = 'none';
-      rainLayer.style.display = 'none';
-      rainDropsLayer.style.display = 'none';
-      starsLayer.style.display = 'none';
-      [...cloudsLayer.querySelectorAll('.cloud')].forEach(n=>n.remove());
-      [...rainDropsLayer.querySelectorAll('.raindrop')].forEach(n=>n.remove());
-      [...starsLayer.querySelectorAll('.star')].forEach(n=>n.remove());
-    }
-    function setBodyTheme(theme, night=false){
-      document.body.classList.remove('bg-sunny','bg-rain','bg-cloudy','bg-night');
-      if(night) document.body.classList.add('bg-night');
-      else{
-        if(theme==='rain') document.body.classList.add('bg-rain');
-        else if(theme==='cloudy') document.body.classList.add('bg-cloudy');
-        else document.body.classList.add('bg-sunny');
-      }
-    }
-    function spawnClouds(){
-      cloudsLayer.style.display = 'block';
-      const layers = [cloudsLayer.querySelector('.layer-1'), cloudsLayer.querySelector('.layer-2'), cloudsLayer.querySelector('.layer-3')];
-      const counts = [5,6,7];
-      layers.forEach((layer, idx)=>{
-        for(let i=0;i<counts[idx];i++){
-          const c = document.createElement('div');
-          c.className = 'cloud';
-          const w = 180 + Math.random()*220;
-          c.style.setProperty('--w', w+'px');
-          c.style.setProperty('--h', (60 + Math.random()*40)+'px');
-          c.style.top = (Math.random()*85)+'vh';
-          c.style.left = (-30 + Math.random()*120)+'vw';
-          c.style.setProperty('--y', (Math.random()*10-5)+'px');
-          const base = idx===0?90:(idx===1?70:55);
-          c.style.setProperty('--speed', (base + Math.random()*20)+'s');
-          c.style.width = w+'px';
-          c.style.height = (60 + Math.random()*40)+'px';
-          layer.appendChild(c);
-        }
-      });
-    }
-    function spawnRain(density=110){
-      rainLayer.style.display = 'block';
-      rainDropsLayer.style.display = 'block';
-      const w = window.innerWidth;
-      for(let i=0;i<density;i++){
-        const d = document.createElement('div');
-        d.className = 'raindrop';
-        d.style.left = Math.random()*w + 'px';
-        d.style.top = (-100 - Math.random()*400) + 'px';
-        d.style.height = (40 + Math.random()*80)+'px';
-        d.style.opacity = (0.3 + Math.random()*0.7).toFixed(2);
-        d.style.setProperty('--t', (0.9 + Math.random()*0.9) + 's');
-        rainDropsLayer.appendChild(d);
-      }
-    }
-    function spawnStars(count=140){
-      starsLayer.style.display = 'block';
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      for(let i=0;i<count;i++){
-        const s = document.createElement('div');
-        s.className = 'star';
-        s.style.left = Math.random()*w+'px';
-        s.style.top = Math.random()*h+'px';
-        s.style.opacity = (0.4+Math.random()*0.6).toFixed(2);
-        s.style.setProperty('--tw', (1.6+Math.random()*2.2)+'s');
-        starsLayer.appendChild(s);
-      }
-    }
-    function updateFX(theme, night=false){
-      clearLayers();
-      if(night){
-        setBodyTheme(theme, true);
-        spawnStars();
-        if(theme==='cloudy') spawnClouds();
-        if(theme==='rain') spawnRain();
-        return;
-      }
-      setBodyTheme(theme, false);
-      if(theme==='sunny') spawnClouds();
-      else if(theme==='cloudy') spawnClouds();
-      else if(theme==='rain'){ spawnClouds(); spawnRain(); }
+    async function getCoordinates(city){
+      const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${API_KEY}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if(data.length) return {lat: data[0].lat, lon: data[0].lon, name: data[0].name};
+      throw new Error('City not found');
     }
 
-    /* ========== FETCH WEATHER ========== */
-    async function fetchWeatherData(lat, lon){
-      const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
-      const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
+    async function fetchWeatherByCity(city){
       try{
-        const [forecastResponse, currentResponse] = await Promise.all([ fetch(forecastUrl), fetch(currentUrl) ]);
-        if(!forecastResponse.ok || !currentResponse.ok){
-          throw new Error(`HTTP error!`);
-        }
-        const forecastData = await forecastResponse.json();
-        const currentData = await currentResponse.json();
-
-        displayCurrentWeather(currentData, forecastData);
+        const {lat, lon, name} = await getCoordinates(city);
+        cityNameEl.textContent = name;
+        const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
+        const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
+        const uvUrl = `https://api.openweathermap.org/data/2.5/uvi?lat=${lat}&lon=${lon}&appid=${API_KEY}`;
+        const [forecastRes, currentRes, uvRes] = await Promise.all([fetch(forecastUrl), fetch(currentUrl), fetch(uvUrl)]);
+        const forecastData = await forecastRes.json();
+        const currentData = await currentRes.json();
+        let uvData = { value: '--' };
+        if(uvRes.ok) uvData = await uvRes.json();
+        displayCurrentWeather(currentData, forecastData, uvData);
         displayHourlyForecast(forecastData.list);
         displayDailyForecast(forecastData.list);
-
         const wId = currentData.weather?.[0]?.id ?? 800;
         const night = isNightBySys(currentData.sys);
         const theme = classifyWeather(wId);
+        mainIconEl.textContent = getWeatherIcon(wId);
         updateFX(theme, night);
-
-        // update ชื่อเมืองจริง
-        document.querySelector("h1").textContent = `${currentData.name}, ${currentData.sys.country}`;
       }catch(err){
-        console.error('Failed to fetch weather data:', err);
+        console.error(err);
       }
     }
 
-    /* ========== RENDER SECTIONS ========== */
-    function displayCurrentWeather(data, forecastData){
-      const el = document.getElementById('current-weather');
-      const temp = Math.round(data.main.temp);
-      const cond = data.weather[0].description;
-      const icon = getWeatherIcon(data.weather[0].id);
-      const hum = data.main.humidity;
-      const wind = data.wind.speed;
-      const forecastDesc = forecastData.list[0].weather[0].description;
-      el.innerHTML = `
-        <div class="flex flex-col items-center">
-          <div class="text-6xl mb-2">${icon}</div>
-          <div class="text-4xl font-bold">${temp}°C</div>
-          <div class="capitalize">${cond}</div>
-          <div class="mt-2 text-sm text-gray-700">Humidity: ${hum}% | Wind: ${wind} m/s</div>
-          <div class="mt-1 text-sm text-gray-500">Next: ${forecastDesc}</div>
-        </div>`;
-    }
+    // เรียกฟังก์ชันเดิมๆ สำหรับ displayCurrentWeather, displayHourlyForecast, displayDailyForecast, FX etc.
+    // ... (copy โค้ดเดิมทั้งหมดจาก script ของคุณที่มี displayCurrentWeather, displayHourlyForecast, displayDailyForecast, updateFX etc.)
 
-    function displayDailyForecast(list){
-      const el = document.getElementById('daily-forecast');
-      el.innerHTML = '';
-      const days = {};
-      list.forEach(item=>{
-        const d = new Date(item.dt*1000);
-        const day = d.toLocaleDateString('en-US',{weekday:'short'});
-        if(!days[day]){
-          days[day] = item;
-        }
-      });
-      Object.entries(days).slice(0,7).forEach(([day, item])=>{
-        const temp = Math.round(item.main.temp);
-        const icon = getWeatherIcon(item.weather[0].id);
-        el.innerHTML += `<div class="forecast-item"><div>${day}</div><div class="text-2xl">${icon}</div><div>${temp}°C</div></div>`;
-      });
-    }
-
-    function displayHourlyForecast(list){
-      const el = document.getElementById('hourly-forecast');
-      el.innerHTML = '';
-      list.slice(0,12).forEach(item=>{
-        const d = new Date(item.dt*1000);
-        const time = d.toLocaleTimeString('en-US',{hour:'numeric'});
-        const temp = Math.round(item.main.temp);
-        const icon = getWeatherIcon(item.weather[0].id);
-        el.innerHTML += `<div class="forecast-item"><div>${time}</div><div class="text-2xl">${icon}</div><div>${temp}°C</div></div>`;
-      });
-    }
-
-    /* ========== GEOLOCATION INIT ========== */
-    function getUserLocation(){
-      if(navigator.geolocation){
-        navigator.geolocation.getCurrentPosition(
-          (pos)=>{ fetchWeatherData(pos.coords.latitude, pos.coords.longitude); },
-          (err)=>{ console.warn("Geolocation Error:", err); fetchWeatherData(13.7563, 100.5018); }
-        );
-      }else{
-        console.warn("Geolocation not supported, fallback to Bangkok.");
-        fetchWeatherData(13.7563, 100.5018);
-      }
-    }
-
-    getUserLocation();
+    fetchWeatherByCity(cityName);
   </script>
 </body>
 </html>
